@@ -1,0 +1,22 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio 2013
+VisualStudioVersion = 12.0.21005.1
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "ImageAlignment", "ImageAlignment\ImageAlignment.vcxproj", "{F31CC20B-8C36-403E-8104-704E3C6AEADF}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Win32 = Debug|Win32
+		Release|Win32 = Release|Win32
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{F31CC20B-8C36-403E-8104-704E3C6AEADF}.Debug|Win32.ActiveCfg = Debug|Win32
+		{F31CC20B-8C36-403E-8104-704E3C6AEADF}.Debug|Win32.Build.0 = Debug|Win32
+		{F31CC20B-8C36-403E-8104-704E3C6AEADF}.Release|Win32.ActiveCfg = Release|Win32
+		{F31CC20B-8C36-403E-8104-704E3C6AEADF}.Release|Win32.Build.0 = Release|Win32
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal
