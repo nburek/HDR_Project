@@ -50,20 +50,32 @@ int bitmapTotal(const Mat *bm);
 
 
 
+Mat finalA, finalB;
+
 int main(int argc, char** argv)
 {
-	Mat img1, img2, greyMat;
-	img1 = imread("deskPic1.jpg", IMREAD_COLOR); // Read the file
-	img2 = imread("deskPic2.jpg", IMREAD_COLOR); // Read the file
-	cvtColor(img1, greyMat, CV_BGR2GRAY);
+	Mat img1, img2, grey1, grey2;
+	img1 = imread("exampleImage.jpg", IMREAD_COLOR); // Read the file
+	img2 = imread("exampleImage2.jpg", IMREAD_COLOR); // Read the file
+	cvtColor(img1, grey1, CV_BGR2GRAY);
+	cvtColor(img2, grey2, CV_BGR2GRAY);
 
 	int shiftVal[2];
-	getExpShift(&img1, &img2, 6, shiftVal);
+	getExpShift(&grey1, &grey2, 6, shiftVal);
 
 	cout << "Shift amount: (" << shiftVal[0] << "," << shiftVal[1] << ")" << endl;
 
 	namedWindow("Greyscale", WINDOW_AUTOSIZE); // Create a window for display.
-	imshow("Greyscale", greyMat); // Show our image inside it.
+	imshow("Greyscale", grey1); // Show our image inside it.
+
+	threshold(finalA, finalA, 0.5, 255, THRESH_BINARY);
+	namedWindow("Debug A", WINDOW_AUTOSIZE); // Create a window for display.
+	imshow("Debug A", finalA); // Show our image inside it.
+
+	threshold(finalB, finalB, 0.5, 255, THRESH_BINARY);
+	namedWindow("Debug B", WINDOW_AUTOSIZE); // Create a window for display.
+	imshow("Debug B", finalB); // Show our image inside it.
+
 
 
 	waitKey(0); // Wait for a keystroke in the window
@@ -118,6 +130,8 @@ void getExpShift(const Mat *img1, const Mat *img2, int shift_bits, int shift_ret
 				shift_ret[0] = xs;
 				shift_ret[1] = ys;
 				min_err = err;
+				finalA = tb2;
+				finalB = shifted_tb2;
 			}
 		}
 }
@@ -125,7 +139,7 @@ void getExpShift(const Mat *img1, const Mat *img2, int shift_bits, int shift_ret
 
 void imageShrink2(const Mat *img, Mat *img_ret)
 {
-	resize(*img, *img_ret, Size(), 0.5, 0.5, CV_INTER_AREA);
+	resize(*img, *img_ret, Size(), 0.5, 0.5, INTER_AREA);
 }
 
 void computeBitmaps(const Mat *img, Mat *tb, Mat *eb)
