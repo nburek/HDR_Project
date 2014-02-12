@@ -50,7 +50,7 @@ int bitmapTotal(const Mat *bm);
 
 
 
-Mat finalA, finalB;
+Mat finalA, finalB, finalC;
 
 int main(int argc, char** argv)
 {
@@ -75,6 +75,10 @@ int main(int argc, char** argv)
 	threshold(finalB, finalB, 0.5, 255, THRESH_BINARY);
 	namedWindow("Debug B", WINDOW_AUTOSIZE); // Create a window for display.
 	imshow("Debug B", finalB); // Show our image inside it.
+
+	threshold(finalC, finalC, 0.5, 255, THRESH_BINARY);
+	namedWindow("Debug C", WINDOW_AUTOSIZE); // Create a window for display.
+	imshow("Debug C", finalC); // Show our image inside it.
 
 
 
@@ -105,7 +109,7 @@ void getExpShift(const Mat *img1, const Mat *img2, int shift_bits, int shift_ret
 	}
 
 	computeBitmaps(img1, &tb1, &eb1);
-	computeBitmaps(img1, &tb2, &eb2);
+	computeBitmaps(img2, &tb2, &eb2);
 	min_err = img1->cols * img1->rows;
 	
 
@@ -117,12 +121,13 @@ void getExpShift(const Mat *img1, const Mat *img2, int shift_bits, int shift_ret
 			Mat shifted_tb2(img1->rows,img1->cols,CV_8UC1,Scalar(0));
 			Mat shifted_eb2(img1->rows, img1->cols, CV_8UC1, Scalar(0));
 			Mat diff_b(img1->rows, img1->cols, CV_8UC1, Scalar(0));
+			Mat temp(img1->rows, img1->cols, CV_8UC1, Scalar(0));
 			int err;
 
 			bitmapShift(&tb2, xs, ys, &shifted_tb2);
 			bitmapShift(&eb2, xs, ys, &shifted_eb2);
-			bitmapXOR(&tb1, &shifted_tb2, &diff_b);
-			bitmapAND(&diff_b, &eb1, &diff_b);
+			bitmapXOR(&tb1, &shifted_tb2, &temp);
+			bitmapAND(&temp, &eb1, &diff_b);
 			bitmapAND(&diff_b, &shifted_eb2, &diff_b);
 			err = bitmapTotal(&diff_b);
 			if (err < min_err)
@@ -130,8 +135,9 @@ void getExpShift(const Mat *img1, const Mat *img2, int shift_bits, int shift_ret
 				shift_ret[0] = xs;
 				shift_ret[1] = ys;
 				min_err = err;
-				finalA = tb2;
+				finalA = tb1;
 				finalB = shifted_tb2;
+				finalC = diff_b;
 			}
 		}
 }
