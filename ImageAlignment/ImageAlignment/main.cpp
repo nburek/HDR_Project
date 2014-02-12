@@ -173,7 +173,7 @@ void bitmapShift(const Mat *bm, int xo, int yo, Mat *bm_ret)
 		int oldRow = row - yo;
 		for (int col = 0; col < bm->cols; col++)
 		{
-			int oldCol = row - xo;
+			int oldCol = col - xo;
 			if (oldRow < 0 || oldRow >= bm->rows || oldCol < 0 || oldCol >= bm->cols)
 				bm_ret->data[col + row*bm_ret->step] = 0;
 			else
