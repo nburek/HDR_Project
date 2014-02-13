@@ -133,23 +133,31 @@ void imageShrink2(const Mat *img, Mat *img_ret)
 
 void computeBitmaps(const Mat *img, Mat *tb, Mat *eb)
 {
+	/*
+		Perform a binary thresholding on the image, setting everything
+		above the threshold to 1
+	*/
 	int thresh = 127;
-	//perform a binary thresholding on the image with the median 127
 	tb->create(img->size(), img->type());
 	threshold(*img, *tb, thresh, 1, THRESH_BINARY);
 
+
+	/*
+		Get the exclusion bitmap by setting everything in the range +-4
+		of the threshold to 0 and everything else to 1
+	*/
 	int var = 4;
-	//get the exclusion bitmap by setting everything in the range 123
-	//to 131 to the value 0 and everything else to 1
 	eb->create(img->size(), img->type());
-	for (int row = 0; row < img->rows; row++)
-		for (int col = 0; col < img->cols; col++)
-		{
-			if (img->data[col + row*img->step] <= (thresh + var) && img->data[col + row*img->step] >= (thresh - var))
-				eb->data[col + row*img->step] = 0;
-			else
-				eb->data[col + row*img->step] = 1;
-		}
+	Mat temp(img->size(), img->type());
+
+	//create a map of everything above the lower threshold being mapped to 1
+	//subtract 1 from (thresh-var) to make it inclusive
+	threshold(*img, temp, thresh - var-1, 1, THRESH_BINARY);
+	//create a map of everything above the uppwer threshold being mapped to 0
+	threshold(*img, *eb, thresh + var, 1, THRESH_BINARY_INV);
+	//xor the two maps to get everything between the two thresholds
+	bitwise_xor(*eb, temp, *eb);
+
 }
 
 void bitmapShift(const Mat *bm, int xo, int yo, Mat *bm_ret)
