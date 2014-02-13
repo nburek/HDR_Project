@@ -2,6 +2,7 @@
 #include <opencv2/core/core.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
 #include <opencv2/highgui/highgui.hpp>
+#include <opencv2/gpu/gpu.hpp>
 #include <iostream>
 
 using namespace cv;
@@ -30,33 +31,14 @@ void computeBitmaps(const Mat *img, Mat *tb, Mat *eb);
 */
 void bitmapShift(const Mat *bm, int xo, int yo, Mat *bm_ret);
 
-/**
-*	Compute the "exclusive-or" of bm1 and bm2 and put the result into bm_ret
-*
-*/
-void bitmapXOR(const Mat *bm1, const Mat *bm2, Mat *bm_ret);
-
-/**
-*	Compute the "bitwise-and" of bm1 and bm2 and put the result into bm_ret
-*
-*/
-void bitmapAND(const Mat *bm1, const Mat *bm2, Mat *bm_ret);
-
-/**
-*	Compute the sum of all 1 bits in the bitmap
-*
-*/
-int bitmapTotal(const Mat *bm);
-
-
 
 Mat finalA, finalB, finalC;
 
 int main(int argc, char** argv)
 {
 	Mat img1, img2, grey1, grey2;
-	img1 = imread("exampleImage.jpg", IMREAD_COLOR); // Read the file
-	img2 = imread("exampleImage2.jpg", IMREAD_COLOR); // Read the file
+	img1 = imread("deskPic1.jpg", IMREAD_COLOR); // Read the file
+	img2 = imread("deskPic2.jpg", IMREAD_COLOR); // Read the file
 	cvtColor(img1, grey1, CV_BGR2GRAY);
 	cvtColor(img2, grey2, CV_BGR2GRAY);
 
@@ -68,7 +50,7 @@ int main(int argc, char** argv)
 	namedWindow("Greyscale", WINDOW_AUTOSIZE); // Create a window for display.
 	imshow("Greyscale", grey1); // Show our image inside it.
 
-	threshold(finalA, finalA, 0.5, 255, THRESH_BINARY);
+	/*threshold(finalA, finalA, 0.5, 255, THRESH_BINARY);
 	namedWindow("Debug A", WINDOW_AUTOSIZE); // Create a window for display.
 	imshow("Debug A", finalA); // Show our image inside it.
 
@@ -78,7 +60,7 @@ int main(int argc, char** argv)
 
 	threshold(finalC, finalC, 0.5, 255, THRESH_BINARY);
 	namedWindow("Debug C", WINDOW_AUTOSIZE); // Create a window for display.
-	imshow("Debug C", finalC); // Show our image inside it.
+	imshow("Debug C", finalC); // Show our image inside it.*/
 
 
 
@@ -89,7 +71,7 @@ int main(int argc, char** argv)
 void getExpShift(const Mat *img1, const Mat *img2, int shift_bits, int shift_ret[2])
 {
 	int min_err;
-	int cur_shift[3];
+	int cur_shift[2];
 	Mat tb1, tb2;
 	Mat eb1, eb2;
 	int i, j;
@@ -126,18 +108,19 @@ void getExpShift(const Mat *img1, const Mat *img2, int shift_bits, int shift_ret
 
 			bitmapShift(&tb2, xs, ys, &shifted_tb2);
 			bitmapShift(&eb2, xs, ys, &shifted_eb2);
-			bitmapXOR(&tb1, &shifted_tb2, &temp);
-			bitmapAND(&temp, &eb1, &diff_b);
-			bitmapAND(&diff_b, &shifted_eb2, &diff_b);
-			err = bitmapTotal(&diff_b);
+
+			bitwise_xor(tb1, shifted_tb2, diff_b);
+			bitwise_and(diff_b, eb1, diff_b);
+			bitwise_and(diff_b, shifted_eb2, diff_b);
+			err = countNonZero(diff_b);
 			if (err < min_err)
 			{
 				shift_ret[0] = xs;
 				shift_ret[1] = ys;
 				min_err = err;
-				finalA = tb1;
-				finalB = shifted_tb2;
-				finalC = diff_b;
+				//finalA = temp;
+				//finalB = shifted_eb2;
+				//finalC = diff_b;
 			}
 		}
 }
@@ -186,31 +169,4 @@ void bitmapShift(const Mat *bm, int xo, int yo, Mat *bm_ret)
 				bm_ret->data[col + row*bm_ret->step] = bm->data[oldCol + oldRow*bm->step];
 		}
 	}
-}
-
-void bitmapXOR(const Mat *bm1, const Mat *bm2, Mat *bm_ret)
-{
-	bm_ret->create(bm1->size(), bm1->type());
-	for (int row = 0; row < bm1->rows; row++)
-		for (int col = 0; col < bm1->cols; col++)
-			bm_ret->data[col + row*bm_ret->step] =	bm1->data[col + row*bm_ret->step] ^
-													bm2->data[col + row*bm_ret->step];
-}
-
-void bitmapAND(const Mat *bm1, const Mat *bm2, Mat *bm_ret)
-{
-	bm_ret->create(bm1->size(), bm1->type());
-	for (int row = 0; row < bm1->rows; row++)
-		for (int col = 0; col < bm1->cols; col++)
-			bm_ret->data[col + row*bm_ret->step] =	bm1->data[col + row*bm_ret->step] &
-													bm2->data[col + row*bm_ret->step];
-}
-
-int bitmapTotal(const Mat *bm)
-{
-	int sum = 0;
-	for (int row = 0; row < bm->rows; row++)
-		for (int col = 0; col < bm->cols; col++)
-			sum += bm->data[col + row*bm->step];
-	return sum;
 }
