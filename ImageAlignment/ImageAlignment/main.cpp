@@ -34,7 +34,7 @@ void bitmapShift(const Mat *bm, int xo, int yo, Mat *bm_ret);
 
 
 
-int main(int argc, char** argv)
+int main3(int argc, char** argv)
 {
 	Mat img1, img2, grey1, grey2;
 	img1 = imread("deskPic1.jpg", IMREAD_COLOR); // Read the file
@@ -51,6 +51,8 @@ int main(int argc, char** argv)
 	imshow("Greyscale", grey1); // Show our image inside it.
 
 	waitKey(0); // Wait for a keystroke in the window
+
+	return 0;
 }
 
 void newExpShift(const Mat *img1, const Mat *img2, int shift_bits, int shift_ret[2])
