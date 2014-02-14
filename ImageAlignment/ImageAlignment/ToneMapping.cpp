@@ -4,7 +4,7 @@
 #include <opencv2/highgui/highgui.hpp>
 #include <iostream>
 #include <stdio.h>
-
+//#include <cmath>
 #include "rgbe.c"
 
 using namespace cv;
@@ -35,22 +35,27 @@ int main(int argc, char** argv)
 	split(image,channels);
 	
 	Mat temp, temp2;
+	double maxReturn;
 	log(channels[1],temp);
-	Lwa = mean(temp);
-	minMaxLoc(channels[1],NULL,&Lwmax,NULL,NULL);
+	Lwa = expf(float(mean(temp)[0]));
+	minMaxLoc(channels[1], NULL, &maxReturn);
+	Lwmax = float(maxReturn);
 	Lwmax /= Lwa;
-	float c1 = (0.01f*Ldmax)/log(Lwmax + 1.0f);
-	float c2 = log(b)/log(0.5f);
+	float c1 = (0.01f*Ldmax)/logf(Lwmax + 1.0f);
+	float c2 = logf(b)/logf(0.5f);
 	
 	channels[1] /= Lwa;
-	temp2.create(channels[1].size(), channels[1].type());
-	temp2 = log(2.0f + 8.0f * pow((channels[1]/Lwmax),c2));
 	temp.create(channels[1].size(),channels[1].type());
-	temp = log(channels[1] + 1.0f);
+	log(channels[1] + 1.0f, temp);
+
+	temp2.create(channels[1].size(), channels[1].type());
+	pow((channels[1] / Lwmax), c2, temp2);
+	log((2.0f + 8.0f*temp2),temp2);
+
 	divide(temp,temp2,channels[1]);
 	channels[1] *= c1;
 	
-	merge(channels,3,image);
+	merge(channels,image);
 	
 	cvtColor(image,image, CV_XYZ2BGR);
 
