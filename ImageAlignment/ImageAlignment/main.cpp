@@ -9,6 +9,7 @@ using namespace cv;
 using namespace std;
 
 void getExpShift(const Mat *img1, const Mat *img2, int shift_bits, int shift_ret[2]);
+void newExpShift(const Mat *img1, const Mat *img2, int shift_bits, int shift_ret[2]);
 
 /**
  *	Subsample the image img by a factor of two in each dimension and put the result into a 
@@ -32,7 +33,6 @@ void computeBitmaps(const Mat *img, Mat *tb, Mat *eb);
 void bitmapShift(const Mat *bm, int xo, int yo, Mat *bm_ret);
 
 
-Mat finalA, finalB, finalC;
 
 int main(int argc, char** argv)
 {
@@ -50,25 +50,10 @@ int main(int argc, char** argv)
 	namedWindow("Greyscale", WINDOW_AUTOSIZE); // Create a window for display.
 	imshow("Greyscale", grey1); // Show our image inside it.
 
-	/*threshold(finalA, finalA, 0.5, 255, THRESH_BINARY);
-	namedWindow("Debug A", WINDOW_AUTOSIZE); // Create a window for display.
-	imshow("Debug A", finalA); // Show our image inside it.
-
-	threshold(finalB, finalB, 0.5, 255, THRESH_BINARY);
-	namedWindow("Debug B", WINDOW_AUTOSIZE); // Create a window for display.
-	imshow("Debug B", finalB); // Show our image inside it.
-
-	threshold(finalC, finalC, 0.5, 255, THRESH_BINARY);
-	namedWindow("Debug C", WINDOW_AUTOSIZE); // Create a window for display.
-	imshow("Debug C", finalC); // Show our image inside it.*/
-
-
-
 	waitKey(0); // Wait for a keystroke in the window
 }
 
-
-void getExpShift(const Mat *img1, const Mat *img2, int shift_bits, int shift_ret[2])
+void newExpShift(const Mat *img1, const Mat *img2, int shift_bits, int shift_ret[2])
 {
 	int min_err;
 	int cur_shift[2];
@@ -81,11 +66,87 @@ void getExpShift(const Mat *img1, const Mat *img2, int shift_bits, int shift_ret
 		Mat sml_img1, sml_img2;
 		imageShrink2(img1, &sml_img1);
 		imageShrink2(img2, &sml_img2);
-		getExpShift(&sml_img1, &sml_img2, shift_bits - 1, cur_shift);
+		newExpShift(&sml_img1, &sml_img2, shift_bits - 1, cur_shift);
 		cur_shift[0] *= 2;
 		cur_shift[1] *= 2;
 	}
 	else
+	{
+		cur_shift[0] = cur_shift[1] = 0;
+	}
+
+	computeBitmaps(img1, &tb1, &eb1);
+	computeBitmaps(img2, &tb2, &eb2);
+	min_err = img1->cols * img1->rows;
+
+
+	for (i = -1; i <= 1; i++)
+		for (j = -1; j <= 1; j++)
+		{
+			int xs = cur_shift[0] + i; //column shift
+			int ys = cur_shift[1] + j; //row shift
+
+			Mat diff_b(img1->rows, img1->cols, CV_8UC1, Scalar(0));
+
+			int err = 0;
+
+
+			for (int row = 0; row < diff_b.rows; ++row)
+			{
+				if ((row - ys)<0 || (row - ys)>diff_b.rows)
+				{
+					continue;
+				}
+				else
+				{
+					for (int col = 0; col < diff_b.cols; ++col)
+					{
+						int ind1 = col + row*diff_b.step;
+						if ((col - xs) < 0 || (col - xs) >= diff_b.cols)
+						{
+							diff_b.data[ind1] = 0;
+						}
+						else
+						{
+							int ind2 = col - xs + (row - ys)*diff_b.step;
+							diff_b.data[ind1] = (((tb1.data[ind1] ^ tb2.data[ind2]) & eb1.data[ind1]) & eb2.data[ind2]);
+							if (diff_b.data[ind1])
+								err++;
+						}
+
+					}
+				}
+			}
+		
+			if (err < min_err)
+			{
+				shift_ret[0] = xs;
+				shift_ret[1] = ys;
+				min_err = err;
+			}
+		}
+}
+
+
+void getExpShift(const Mat *img1, const Mat *img2, int shift_bits, int shift_ret[2])
+{
+	int min_err;
+	int cur_shift[2];
+	Mat tb1, tb2;
+	Mat eb1, eb2;
+	int i, j;
+
+	//shrink the image and do a recursive call until we reach the smallest size
+	if (shift_bits > 0)
+	{
+		Mat sml_img1, sml_img2;
+		imageShrink2(img1, &sml_img1);
+		imageShrink2(img2, &sml_img2);
+		getExpShift(&sml_img1, &sml_img2, shift_bits - 1, cur_shift);
+		cur_shift[0] *= 2;
+		cur_shift[1] *= 2;
+	}
+	else //we've reached the smallest size so start doing calculations
 	{
 		cur_shift[0] = cur_shift[1] = 0;
 	}
@@ -103,24 +164,25 @@ void getExpShift(const Mat *img1, const Mat *img2, int shift_bits, int shift_ret
 			Mat shifted_tb2(img1->rows,img1->cols,CV_8UC1,Scalar(0));
 			Mat shifted_eb2(img1->rows, img1->cols, CV_8UC1, Scalar(0));
 			Mat diff_b(img1->rows, img1->cols, CV_8UC1, Scalar(0));
-			Mat temp(img1->rows, img1->cols, CV_8UC1, Scalar(0));
+
 			int err;
 
+			//shift the second image
 			bitmapShift(&tb2, xs, ys, &shifted_tb2);
 			bitmapShift(&eb2, xs, ys, &shifted_eb2);
 
+			//create a difference map between the first and shifted second image
 			bitwise_xor(tb1, shifted_tb2, diff_b);
 			bitwise_and(diff_b, eb1, diff_b);
 			bitwise_and(diff_b, shifted_eb2, diff_b);
+
+			//check the error in the difference map and see if it's the smallest so far
 			err = countNonZero(diff_b);
 			if (err < min_err)
 			{
 				shift_ret[0] = xs;
 				shift_ret[1] = ys;
 				min_err = err;
-				//finalA = temp;
-				//finalB = shifted_eb2;
-				//finalC = diff_b;
 			}
 		}
 }
