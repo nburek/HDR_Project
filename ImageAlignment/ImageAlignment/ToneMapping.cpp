@@ -22,45 +22,78 @@ int main(int argc, char** argv)
 	FILE *f;
 	int image_width, image_height;
 	float *hdrData;
-	f = fopen("smallOffice.hdr", "rb");
+	f = fopen("memorial.hdr", "rb");
 	rgbe_header_info headerInfo;
 	RGBE_ReadHeader(f, &image_width, &image_height, &headerInfo);
 	hdrData = (float*)malloc(sizeof(float)* 3 * image_width*image_height);
 	RGBE_ReadPixels_RLE(f, hdrData, image_width, image_height);
 
+	float min = 10000.0f, max = 0.0f;
+	for (int i = 0; i < (image_width*image_height * 3); ++i)
+	{
+		if (hdrData[i] < min)
+			min = hdrData[i];
+		if (hdrData[i] > max)
+			max = hdrData[i];
+	}
 
-	Mat image(image_height, image_width, CV_32FC3, hdrData);
-	cvtColor(image, image, CV_RGB2XYZ);
-	vector<Mat> channels;
-	split(image,channels);
+
+	Mat rgbImage(image_height, image_width, CV_32FC3, hdrData);
+	//rgbImage /= max;
+	Mat xyzImage(image_height, image_width, CV_32FC3);
 	
-	Mat temp, temp2;
+
+	cvtColor(rgbImage, xyzImage, CV_RGB2XYZ);
+
+	vector<Mat> channels;
+	split(xyzImage, channels);
+
+
+	Mat logMap;
+	Mat dividend, divisor;
+
+	//find the world adaptation luminence by finding the log-average
+	int c = 1; //the channel to use for the luminance
+	log(channels[c], logMap);
+	Lwa = expf(float(mean(logMap)[0]));
+
+
+	//find max luminence in the world and scale it by the Lwa
 	double maxReturn;
-	log(channels[1],temp);
-	Lwa = expf(float(mean(temp)[0]));
-	minMaxLoc(channels[1], NULL, &maxReturn);
-	Lwmax = float(maxReturn);
-	Lwmax /= Lwa;
-	float c1 = (0.01f*Ldmax)/logf(Lwmax + 1.0f);
+	minMaxLoc(channels[c], NULL, &maxReturn);
+	Lwmax = float(maxReturn)/Lwa;
+
+
+	//scale the world luminance by the adaptation luminence
+	channels[c] /= Lwa; //not sure if this should be multiply or divide
+
+	//run the tonemapping algorithm on the luminance
+	float c1 = (0.01f*Ldmax)/log10f(Lwmax + 1.0f);
 	float c2 = logf(b)/logf(0.5f);
 	
-	channels[1] /= Lwa;
-	temp.create(channels[1].size(),channels[1].type());
-	log(channels[1] + 1.0f, temp);
+	dividend.create(channels[c].size(), channels[c].type());
+	log(channels[c] + 1.0f, dividend);
 
-	temp2.create(channels[1].size(), channels[1].type());
-	pow((channels[1] / Lwmax), c2, temp2);
-	log((2.0f + 8.0f*temp2),temp2);
+	divisor.create(channels[c].size(), channels[c].type());
+	pow((channels[c] / Lwmax), c2, divisor);
+	log((2.0f + 8.0f*divisor), divisor);
 
-	divide(temp,temp2,channels[1]);
-	channels[1] *= c1;
+	divide(dividend, divisor, channels[c]);
+	channels[c] *= c1;
+
+	minMaxLoc(channels[1], NULL, &maxReturn);
+
 	
-	merge(channels,image);
-	
-	cvtColor(image,image, CV_XYZ2BGR);
+	//recombine the new luminance with the old X anx Z channels
+	merge(channels, xyzImage);
 
-	namedWindow("ToneMap", WINDOW_AUTOSIZE); // Create a window for display.
-	imshow("ToneMap", image); // Show our image inside it.
+	//change back to the BGR colorspace
+	cvtColor(xyzImage, rgbImage, CV_XYZ2BGR);
+
+	imwrite("testImg.jpg", rgbImage);
+
+	namedWindow("ToneMap", WINDOW_NORMAL); // Create a window for display.
+	imshow("ToneMap", rgbImage); // Show our image inside it.
 
 	waitKey(0); // Wait for a keystroke in the window
 
