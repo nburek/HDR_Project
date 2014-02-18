@@ -241,8 +241,8 @@ static int RGBE_WriteBytes_RLE(FILE *fp, unsigned char *data, int numbytes)
       beg_run += run_count;
       old_run_count = run_count;
       run_count = 1;
-      while((data[beg_run] == data[beg_run + run_count]) 
-	    && (beg_run + run_count < numbytes) && (run_count < 127))
+      while( (beg_run + run_count < numbytes) && (run_count < 127)
+             && (data[beg_run] == data[beg_run + run_count]))
 	run_count++;
     }
     /* if data before next big run is a short run then write it as such */
