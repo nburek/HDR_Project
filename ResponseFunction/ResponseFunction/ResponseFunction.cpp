@@ -15,6 +15,7 @@ void printExposures(vector<float>* exp){
 	}
 }
 
+//verifies that the number of pictures and the number of exposures loaded checks out
 void loadCheck(vector<float>* exp, vector<Mat>* pictures){
 	if(exp->size() != pictures->size()){
 		cout<<"Exposure count and image count don't match:"<<endl;
@@ -26,7 +27,7 @@ void loadCheck(vector<float>* exp, vector<Mat>* pictures){
 	}
 }
 
-void loadMat(vector<Mat>* pictures, const char* pictureFolder)
+void loadPhotos(vector<Mat>* pictures, const char* pictureFolder)
 {
 	DIR *dir;
 	struct dirent *ent;
@@ -66,6 +67,7 @@ void loadExposures(vector<float>* exp, const char* expFile){
 	}
 }
 
+//used for generating A and b for Ax = b
 float weightingFunction(float z, float z_min, float z_max){
 	float avg_z = (z_min + z_max)/2;	//will an int work?
 	float result;
@@ -77,6 +79,7 @@ float weightingFunction(float z, float z_min, float z_max){
 	return result;
 }
 
+//not used 
 void precalculatePixelWeights(vector<float>& weights, float zMin, float zMax){
    float thresh = 0.5*( zMin + zMax );
 
@@ -87,35 +90,15 @@ void precalculatePixelWeights(vector<float>& weights, float zMin, float zMax){
    }
 }
 
-void writeMatToFile(cv::Mat& m, const char* filename)
-{
-    ofstream fout(filename);
-
-    if(!fout)
-    {
-        cout<<"File Not Opened"<<endl;  return;
-    }
-
-    for(int i=0; i<m.rows; i++)
-    {
-        for(int j=0; j<m.cols; j++)
-        {
-            fout<<m.at<float>(i,j)<<"\t";
-        }
-        fout<<endl;
-    }
-
-    fout.close();
-}
-
+//changes 8U to 32F and performs any desired channel splitting
 Mat formatMat(Mat image, int color){
 	Mat singleChan;
 	Mat result;
 
-	/*FileStorage fileX("formatCheck.txt", cv::FileStorage::WRITE);
-	fileX << "FormatCheck" << m;
+	FileStorage fileX("formatCheck.txt", cv::FileStorage::WRITE);
+	fileX << "FormatCheck" << image;
 	fileX.release();
-	*/
+	
 
 	if(image.channels() > 1){
 		vector<Mat> chanVec;
@@ -126,7 +109,7 @@ Mat formatMat(Mat image, int color){
 	}
 
 	if(singleChan.type() == CV_8UC1){
-		singleChan.convertTo(result, CV_32FC1, 1/255.0);
+		singleChan.convertTo(result, CV_32FC1);
 	}else{
 		result = singleChan;
 	}
@@ -134,6 +117,7 @@ Mat formatMat(Mat image, int color){
 	return result;
 }
 
+//creates A and b for Ax = b
 void generateMatrices(Mat* A, Mat* b, vector<float>* exposures, vector<Mat>* photos, map<float, Vec2i>* samples, float lambda)
 {
 	float z_min = 0;
@@ -141,10 +125,8 @@ void generateMatrices(Mat* A, Mat* b, vector<float>* exposures, vector<Mat>* pho
 
 	int k = 0;
 
-
 	//Note: samples are in random order - verify that this isn't an issue
-	//Verify that you are setting the correct positions in A
-	cout<<"MatTest1"<<endl;
+	cout<<"\tgmTest1"<<endl;
 	for( map<float, Vec2i>::iterator posIndex = samples->begin(); posIndex != samples->end(); ++posIndex) {
 		Vec2i currPos = (*posIndex).second;
 		int i = 0;
@@ -160,63 +142,68 @@ void generateMatrices(Mat* A, Mat* b, vector<float>* exposures, vector<Mat>* pho
          }
 		 i++;
     }
-	//namedWindow( "Display window", WINDOW_AUTOSIZE );// Create a window for display.
-    //imshow( "Display window", *A );  
-	//waitKey(0);  
+	/*
+	//view A matrix
+	namedWindow( "Display window", WINDOW_AUTOSIZE );
+    imshow( "Display window", *A );  
+	waitKey(0);  */
 
-	cout<<"MatTest2"<<endl;
-	//verify
+	cout<<"\tgmTest2"<<endl;
+
 	//A->at<float>(k,samples->size()*photos->size()) = 1;	
 	A->at<float>(k, 127) = 1;	
 	k++;
-	cout<<"MatTest3"<<endl;
+	cout<<"\tgmTest3"<<endl;
+	//smoothness equations
 	for(int i = 1; i < 255; i++){
-		// Include the smoothness equations
 		A->at<float>(k,i-1) = lambda*weightingFunction(i, z_min, z_max);				//A(k,i)=l*w(i+1); 
 		A->at<float>(k,i) = -2.0f*lambda*weightingFunction(i, z_min, z_max);		//A(k,i+1)=-2*l*w(i+1);
 		A->at<float>(k,i+1) = lambda*weightingFunction(i, z_min, z_max);			//A(k,i+2)=l*w(i+1);
 		k++;																		//k=k+1;
 	}
-	cout<<"Mat Executed Without Issue"<<endl;
+	cout<<"generateMatrices Executed Without Issue"<<endl;
 	
 }
 
-void calcResponseCurve(Mat* g, Mat* logE, Mat img, vector<float>* exposures, vector<Mat>* ranges, map<float, Vec2i>* samples, float lambda){
-	
+void calcResponseCurve(Mat* g, Mat* logE, Mat img, vector<float>* exposures, vector<Mat>* photos, map<float, Vec2i>* samples, float lambda){
 	int n = samples->size();
-	int p = ranges->size();
+	int p = photos->size();
 	int rowsA = n*p+257;										
 	int colsA = 256+n;
 
-	cout<<"CalcRespCurveTest1"<<endl;
+	cout<<"\tcrcTest1"<<endl;
 	Mat A;
 	Mat b;
 	A = Mat::zeros(rowsA, colsA, CV_32F);
 	b = Mat::zeros(rowsA,1, CV_32F);	
 
-	cout<<"n: "<<n<<endl;
-	cout<<"p: "<<p<<endl;
-	cout<<"A: "<<A.size().height<<"x"<<A.size().width<<endl;
-	cout<<"b: "<<b.size().height<<"x"<<b.size().width<<endl;
-
-	generateMatrices(&A, &b, exposures, ranges, samples, lambda);
-	cout<<"CalcRespCurveTest4: About to solve system"<<endl;
+	generateMatrices(&A, &b, exposures, photos, samples, lambda);
+	cout<<"\tcrcTest2: About to solve system"<<endl;
 	
 	//estimate response time																
 	Mat x;
 	bool result = solve(A,b,x, DECOMP_SVD);			//Solve the system using SVD
 
+	//splits out x to a file
 	FileStorage fileX("x.txt", cv::FileStorage::WRITE);
 	fileX << "x" << x;
 	fileX.release();
 
+	/*
+	//verifying matrice dimensions
+	cout<<"n: "<<n<<endl;
+	cout<<"p: "<<p<<endl;
+	cout<<"A: "<<A.size().height<<"x"<<A.size().width<<endl;
+	cout<<"b: "<<b.size().height<<"x"<<b.size().width<<endl;
 	cout<<"x: "<<x.size().height<<"x"<<x.size().width<<endl;
-	cout<<"CalcRespCurveTest5: System solve successful"<<endl;
+	*/
+	cout<<"\tcrcTest3: System solve successful"<<endl;
 	*g = Mat(x, Range(0,256), Range::all());					
 	*logE = Mat(x, Range(256, x.size().height), Range::all());		
-	cout<<"CalcRespCurveTest6: Response Curve Calculation Executed without issue"<<endl;
+	cout<<"calcResponseCurve without issue"<<endl;
 }
 
+//chooses sample pixels
 void sampleImage(Mat image, map<float, Vec2i>* samples, int sampleSize){
 	//Question: does order matter:?
 	int ctr = 0;
@@ -232,13 +219,15 @@ void sampleImage(Mat image, map<float, Vec2i>* samples, int sampleSize){
 		return;
 	}
 
+
 	while(ctr < sampleSize){
-		//choose pixel
+		//choose pixel at random
 		int randRow = rand() % image.size().height;
 		int randCol = rand() % image.size().width;
 
 		float val = image.at<float>(randRow, randCol);
 
+		//verify that its value does not exist already in the map
 		if(samples->find(val) == samples->end()){
 			Vec2i pos(randRow, randCol);
 			samples->insert(pair<float, Vec2i>(val, pos));
@@ -263,7 +252,7 @@ int main( int argc, char** argv )
 	const char* exposureFile = "C:\\Users\\Ein\\Desktop\\CathedralTest\\exposures\\memorial.hdr_image_list.txt";
 	
 	//load pictures from folder
-	loadMat(photos, pictureFolder);
+	loadPhotos(photos, pictureFolder);
 	
 	//load shutter speeds from text file
 	loadExposures(exposures, exposureFile);
@@ -274,23 +263,32 @@ int main( int argc, char** argv )
 	map<float, Vec2i>* samples = new map<float, Vec2i>();
 	int samplePicIndex = photos->size()/2;
 	
+	/*
+		The idea here is to get the response curve for channel
+		-May try working with the L*a*b* colorspace and just working with the L* channel
+	*/
 	Mat redlogE;
 	Mat redg;
-	Mat samplePicRed = formatMat((*photos)[samplePicIndex], 0); //verify colorspace
+	Mat samplePicRed = formatMat((*photos)[samplePicIndex], 0); //verify colorspace: RGB vs BGR
 
-	FileStorage fileRed("redChan.txt", cv::FileStorage::WRITE);
-	fileRed << "redChan" << samplePicRed;
-	fileRed.release();
-
-	vector<Mat>* redRanges = new vector<Mat>();
+	//Split off the red channel from all the existing photos and store them in their own vector
+	vector<Mat>* redPhotos = new vector<Mat>();
 	for(vector<Mat>::iterator splitIt = photos->begin(); splitIt != photos->end(); ++splitIt){
 		Mat redChan = formatMat(*splitIt, 0);
-		redRanges->push_back(redChan);
+		redPhotos->push_back(redChan);
 	}
 	cout<<"MainTest1"<<endl;
+	//Randomly sample middle image (ideally the middle image is neither too light or too dark)
 	sampleImage(samplePicRed, samples, 50);
+	
+	//Random printout to verify sampling
+	cout<<endl<<"Samples: "<<endl;
+	for(map<float, Vec2i>::iterator sampIt = samples->begin(); sampIt != samples->end(); ++sampIt){
+		cout<<(*sampIt).first<<" "<<(*sampIt).second<<endl;
+	}
+
 	cout<<"MainTest2"<<endl;
-	calcResponseCurve(&redg, &redlogE, samplePicRed, exposures, redRanges, samples, .99f);
+	calcResponseCurve(&redg, &redlogE, samplePicRed, exposures, redPhotos, samples, .99f);
 
 	cout<<"MainTest3 - Dimension check for g: "<<redg.size().height<<"x"<<redg.size().width<<endl;
 	cout<<"MainTest4 - Dimension check for lnE: "<<redlogE.size().height<<"x"<<redlogE.size().width<<endl;
@@ -306,9 +304,9 @@ int main( int argc, char** argv )
 
 
 	cout<<"Program Executed Without Issue"<<endl;
-	estimateRadianceMap();
 
-
+	//These do nothing at the moment
+	estimateRadianceMap();		//this may get absorbed into the response curve
 
 	writeHDRImage();
     return 0;
