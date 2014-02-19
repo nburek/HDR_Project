@@ -148,7 +148,7 @@ int main(int argc, char** argv)
 	FILE *f;
 	int image_width, image_height;
 	float *hdrData;
-	f = fopen("memorial.hdr", "rb");
+	f = fopen("output.hdr", "rb");
 	rgbe_header_info headerInfo;
 	RGBE_ReadHeader(f, &image_width, &image_height, &headerInfo);
 	hdrData = (float*)malloc(sizeof(float)* 3 * image_width*image_height);
@@ -226,6 +226,7 @@ int main(int argc, char** argv)
 
 	//change back to the BGR colorspace
 	cvtColor(xyzImage, rgbImage, CV_XYZ2BGR);
+	//bandPass(rgbImage, 0.0f, 1.0f);
 	printMinMaxPerChannel("tone mapped (bgr)", rgbImage);
 
 
