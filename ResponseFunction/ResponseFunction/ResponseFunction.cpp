@@ -4,7 +4,7 @@
 #include <iostream>
 #include <fstream>
 #include <dirent.h>
-#include "rgbe.h"
+#include "rgbe.c"
 
 using namespace cv;
 using namespace std;
@@ -256,20 +256,38 @@ void printMatrixToFile(string filename, Mat m){
 	fileLog.release();
 }
 
-void estimateRadianceMap(){
+void estimateRadianceMap(Mat &redG, Mat &greenG, Mat &blueG, const Mat &photo, float *output)
+{
+	Mat red, green, blue;
+	exp(redG, red);
+	exp(greenG, green);
+	exp(blueG, blue);
 
+	for (int row = 0; row < photo.rows; ++row)
+	{
+		for (int col = 0; col < photo.cols; ++col)
+		{
+			Vec3b pixel = photo.at<Vec3b>(row, col);
+			output[3 * (row*photo.cols + col)] = red.at<float>(pixel[2], 0); //red
+			output[3 * (row*photo.cols + col) + 1] = red.at<float>(pixel[1], 0); //green 
+			output[3 * (row*photo.cols + col) + 2] = red.at<float>(pixel[0], 0); //blue
+		}
+	}
 }
 
-void writeHDRImage(){
-
+void writeHDRImage(int rows, int cols, float* hdrData){
+	FILE *file = fopen("output.hdr", "wb");
+	RGBE_WriteHeader(file, cols, rows, NULL);
+	RGBE_WritePixels_RLE(file, hdrData, cols,rows);
+	fclose(file);
 }
 
 int main( int argc, char** argv )
 {
 	vector<Mat>* photos = new vector<Mat>();
 	vector<float>* exposures = new vector<float>();
-	const char* pictureFolder = "C:\\Users\\Ein\\Desktop\\CathedralTest\\pictures\\";
-	const char* exposureFile = "C:\\Users\\Ein\\Desktop\\CathedralTest\\exposures\\memorial.hdr_image_list.txt";
+	const char* pictureFolder = "C:\\Users\\Nick\\Desktop\\HDR_Project\\ResponseFunction\\ResponseFunction\\CathedralDataSet\\pictures\\";
+	const char* exposureFile =  "C:\\Users\\Nick\\Desktop\\HDR_Project\\ResponseFunction\\ResponseFunction\\CathedralDataSet\\exposures\\memorial.hdr_image_list.txt";
 	
 	//load pictures from folder
 	loadPhotos(photos, pictureFolder);
@@ -310,9 +328,9 @@ int main( int argc, char** argv )
 	//Randomly sample middle image (ideally the middle image is neither too light or too dark)
 	sampleImage(samplePicRed, samples, 50);
 	
-	calcResponseCurve(&redg, &redlogE, samplePicRed, exposures, redPhotos, samples, .99f);
-	//calcResponseCurve(&greeng, &greenlogE, samplePicRed, exposures, greenPhotos, samples, .99f);
-	//calcResponseCurve(&blueg, &bluelogE, samplePicRed, exposures, bluePhotos, samples, .99f);
+	calcResponseCurve(&redg, &redlogE, samplePicRed, exposures, redPhotos, samples, 2.0f);
+	calcResponseCurve(&greeng, &greenlogE, samplePicRed, exposures, greenPhotos, samples, 2.0f);
+	calcResponseCurve(&blueg, &bluelogE, samplePicRed, exposures, bluePhotos, samples, 2.0f);
 
 	//write log E_n out to file
 	FileStorage fileLog("log_E.txt", cv::FileStorage::WRITE);
@@ -332,9 +350,10 @@ int main( int argc, char** argv )
 	cout<<"Program Executed Without Issue"<<endl;
 
 	//These do nothing at the moment
-	estimateRadianceMap();		//this may get absorbed into the response curve
+	float *hdrData = (float*)malloc(sizeof(float)* 3 * ((*photos)[4].rows)*((*photos)[4].cols));
+	estimateRadianceMap(redg,greeng,blueg,(*photos)[4],hdrData);		//this may get absorbed into the response curve
 
-	writeHDRImage();
+	writeHDRImage(((*photos)[4]).rows, ((*photos)[4]).cols, hdrData);
     return 0;
 }
 
