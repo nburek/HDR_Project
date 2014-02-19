@@ -243,15 +243,6 @@ void sampleImage(Mat image, map<float, Vec2i>* samples, int sampleSize){
 	}
 }
 
-void printMatrixToFile(string filename, Mat m){
-	Mat reshapedMat = m.reshape(0,m.size().height*m.size().width);
-	string fileExt = filename;
-	fileExt.append(".txt");
-
-	FileStorage fileLog(fileExt.c_str(), cv::FileStorage::WRITE);
-	fileLog << filename << reshapedMat;
-	fileLog.release();
-}
 
 void estimateRadianceMap(Mat &redG, Mat &greenG, Mat &blueG, const Mat &photo, float *output)
 {
@@ -266,8 +257,8 @@ void estimateRadianceMap(Mat &redG, Mat &greenG, Mat &blueG, const Mat &photo, f
 		{
 			Vec3b pixel = photo.at<Vec3b>(row, col);
 			output[3 * (row*photo.cols + col)] = red.at<float>(pixel[2], 0); //red
-			output[3 * (row*photo.cols + col) + 1] = red.at<float>(pixel[1], 0); //green 
-			output[3 * (row*photo.cols + col) + 2] = red.at<float>(pixel[0], 0); //blue
+			output[3 * (row*photo.cols + col) + 1] = green.at<float>(pixel[1], 0); //green 
+			output[3 * (row*photo.cols + col) + 2] = blue.at<float>(pixel[0], 0); //blue
 		}
 	}
 }
@@ -284,9 +275,9 @@ int main( int argc, char** argv )
 	vector<Mat>* photos = new vector<Mat>();
 	vector<float>* exposures = new vector<float>();
 
-	string fileRoot = "C:\\Users\\Ein\\Desktop\\CathedralTest\\";
+	string fileRoot = "C:\\Users\\Nick\\Desktop\\HDR_Project\\ResponseFunction\\ResponseFunction\\CathedralDataSet";
 	string pictureFolder = fileRoot+"\\pictures\\";
-	string exposureFile = fileRoot+"exposures\\memorial.hdr_image_list.txt";
+	string exposureFile = fileRoot+"\\exposures\\memorial.hdr_image_list.txt";
 	
 	//load pictures from folder
 	loadPhotos(photos, pictureFolder.c_str());
@@ -316,13 +307,13 @@ int main( int argc, char** argv )
 	cout<<"Splitting Channels...";
 	//Split channels from all the existing photos and store them in their own vectors
 	vector<Mat>* redPhotos = new vector<Mat>();
-	splitChannelOnMatVec(photos, redPhotos, 0);
+	splitChannelOnMatVec(photos, redPhotos, 2);
 
 	vector<Mat>* greenPhotos = new vector<Mat>();
 	splitChannelOnMatVec(photos, greenPhotos, 1);
 
 	vector<Mat>* bluePhotos = new vector<Mat>();
-	splitChannelOnMatVec(photos, bluePhotos, 2);
+	splitChannelOnMatVec(photos, bluePhotos, 0);
 	cout<<"Done"<<endl;
 
 	//Randomly sample middle image (ideally the middle image is neither too light or too dark)
@@ -331,9 +322,9 @@ int main( int argc, char** argv )
 	cout<<"Done"<<endl;
 	
 
-	calcResponseCurve(&redg, &redlogE, samplePicRed, exposures, redPhotos, samples, 1.5f);
-	calcResponseCurve(&greeng, &greenlogE, samplePicRed, exposures, greenPhotos, samples, 1.5f);
-	calcResponseCurve(&blueg, &bluelogE, samplePicRed, exposures, bluePhotos, samples, 1.5f);
+	calcResponseCurve(&redg, &redlogE, samplePicRed, exposures, redPhotos, samples, 7.0f);
+	calcResponseCurve(&greeng, &greenlogE, samplePicRed, exposures, greenPhotos, samples, 7.0f);
+	calcResponseCurve(&blueg, &bluelogE, samplePicRed, exposures, bluePhotos, samples, 7.0f);
 
 	//write log E_n out to file
 	cout<<"Writing response functions to file...";
