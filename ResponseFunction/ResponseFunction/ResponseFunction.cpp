@@ -81,7 +81,7 @@ float weightingFunction(float z, float z_min, float z_max){
 
 //not used 
 void precalculatePixelWeights(vector<float>& weights, float zMin, float zMax){
-   float thresh = 0.5*( zMin + zMax );
+   float thresh = 0.5f*( zMin + zMax );
 
    for( int i = 0; i < weights.size(); i++) {
         float z = (float)i;
@@ -117,6 +117,14 @@ Mat formatMat(Mat image, int color){
 	return result;
 }
 
+void splitChannelOnMatVec(vector<Mat>* photos, vector<Mat>* dst, int color)
+{
+	for(vector<Mat>::iterator splitIt = photos->begin(); splitIt != photos->end(); ++splitIt){
+		Mat chan = formatMat(*splitIt, color);
+		dst->push_back(chan);
+	}
+}
+
 //creates A and b for Ax = b
 void generateMatrices(Mat* A, Mat* b, vector<float>* exposures, vector<Mat>* photos, map<float, Vec2i>* samples, float lambda)
 {
@@ -127,13 +135,13 @@ void generateMatrices(Mat* A, Mat* b, vector<float>* exposures, vector<Mat>* pho
 
 	//Note: samples are in random order - verify that this isn't an issue
 	cout<<"\tgmTest1"<<endl;
+	int i = 0;
 	for( map<float, Vec2i>::iterator posIndex = samples->begin(); posIndex != samples->end(); ++posIndex) {
 		Vec2i currPos = (*posIndex).second;
-		int i = 0;
          for( int j = 0; j < photos->size(); j++) {
 			 float zij =  (*photos)[j].at<float>(currPos);
-             float wij =  weightingFunction(z_min, z_max, zij);		//wij = w(Z(i,j)+1);
-              A->at<float>(k, zij) = wij;							//A(k,Z(i,j)+1) = wij; 
+             float wij =  weightingFunction(zij+1.0f, z_min, z_max);		//wij = w(Z(i,j)+1);
+              A->at<float>(k, zij+1.0f) = wij;							//A(k,Z(i,j)+1) = wij; 
               A->at<float>(k, 256+i) = -wij;						//A(k,n+i)= -wij
 
 			  //fine
@@ -142,25 +150,27 @@ void generateMatrices(Mat* A, Mat* b, vector<float>* exposures, vector<Mat>* pho
          }
 		 i++;
     }
-	/*
-	//view A matrix
-	namedWindow( "Display window", WINDOW_AUTOSIZE );
-    imshow( "Display window", *A );  
-	waitKey(0);  */
 
-	cout<<"\tgmTest2"<<endl;
+	Mat aRough = *A;
+	FileStorage fileArough("ARough.txt", cv::FileStorage::WRITE);
+	fileArough << "ARough" << aRough;
+	fileArough.release();
 
 	//A->at<float>(k,samples->size()*photos->size()) = 1;	
-	A->at<float>(k, 127) = 1;	
+	A->at<float>(k, 129) = 1.0f;	
 	k++;
-	cout<<"\tgmTest3"<<endl;
 	//smoothness equations
 	for(int i = 1; i < 255; i++){
-		A->at<float>(k,i-1) = lambda*weightingFunction(i, z_min, z_max);				//A(k,i)=l*w(i+1); 
-		A->at<float>(k,i) = -2.0f*lambda*weightingFunction(i, z_min, z_max);		//A(k,i+1)=-2*l*w(i+1);
-		A->at<float>(k,i+1) = lambda*weightingFunction(i, z_min, z_max);			//A(k,i+2)=l*w(i+1);
+		A->at<float>(k,i-1) = lambda*weightingFunction((float)i, z_min, z_max);				//A(k,i)=l*w(i+1); 
+		A->at<float>(k,i) = -2.0f*lambda*weightingFunction((float)i, z_min, z_max);		//A(k,i+1)=-2*l*w(i+1);
+		A->at<float>(k,i+1) = lambda*weightingFunction((float)i, z_min, z_max);			//A(k,i+2)=l*w(i+1);
 		k++;																		//k=k+1;
 	}
+
+	Mat aSmooth = *A;
+	FileStorage fileA1("A_smooth.txt", cv::FileStorage::WRITE);
+	fileA1 << "A_smooth" << aSmooth;
+	fileA1.release();
 	cout<<"generateMatrices Executed Without Issue"<<endl;
 	
 }
@@ -168,7 +178,7 @@ void generateMatrices(Mat* A, Mat* b, vector<float>* exposures, vector<Mat>* pho
 void calcResponseCurve(Mat* g, Mat* logE, Mat img, vector<float>* exposures, vector<Mat>* photos, map<float, Vec2i>* samples, float lambda){
 	int n = samples->size();
 	int p = photos->size();
-	int rowsA = n*p+257;										
+	int rowsA = n*p+255;										
 	int colsA = 256+n;
 
 	cout<<"\tcrcTest1"<<endl;
@@ -236,6 +246,16 @@ void sampleImage(Mat image, map<float, Vec2i>* samples, int sampleSize){
 	}
 }
 
+void printMatrixToFile(string filename, Mat m){
+	Mat reshapedMat = m.reshape(0,m.size().height*m.size().width);
+	string fileExt = filename;
+	fileExt.append(".txt");
+
+	FileStorage fileLog(fileExt.c_str(), cv::FileStorage::WRITE);
+	fileLog << filename << reshapedMat;
+	fileLog.release();
+}
+
 void estimateRadianceMap(){
 
 }
@@ -263,45 +283,51 @@ int main( int argc, char** argv )
 	map<float, Vec2i>* samples = new map<float, Vec2i>();
 	int samplePicIndex = photos->size()/2;
 	
-	/*
-		The idea here is to get the response curve for channel
-		-May try working with the L*a*b* colorspace and just working with the L* channel
-	*/
+
 	Mat redlogE;
 	Mat redg;
+
+	Mat greenlogE;
+	Mat greeng;
+
+	Mat bluelogE;
+	Mat blueg;
+
+
 	Mat samplePicRed = formatMat((*photos)[samplePicIndex], 0); //verify colorspace: RGB vs BGR
 
 	//Split off the red channel from all the existing photos and store them in their own vector
 	vector<Mat>* redPhotos = new vector<Mat>();
-	for(vector<Mat>::iterator splitIt = photos->begin(); splitIt != photos->end(); ++splitIt){
-		Mat redChan = formatMat(*splitIt, 0);
-		redPhotos->push_back(redChan);
-	}
+	splitChannelOnMatVec(photos, redPhotos, 0);
+
+	vector<Mat>* greenPhotos = new vector<Mat>();
+	splitChannelOnMatVec(photos, greenPhotos, 1);
+
+	vector<Mat>* bluePhotos = new vector<Mat>();
+	splitChannelOnMatVec(photos, bluePhotos, 2);
+
 	cout<<"MainTest1"<<endl;
 	//Randomly sample middle image (ideally the middle image is neither too light or too dark)
 	sampleImage(samplePicRed, samples, 50);
 	
-	//Random printout to verify sampling
-	cout<<endl<<"Samples: "<<endl;
-	for(map<float, Vec2i>::iterator sampIt = samples->begin(); sampIt != samples->end(); ++sampIt){
-		cout<<(*sampIt).first<<" "<<(*sampIt).second<<endl;
-	}
-
-	cout<<"MainTest2"<<endl;
 	calcResponseCurve(&redg, &redlogE, samplePicRed, exposures, redPhotos, samples, .99f);
-
-	cout<<"MainTest3 - Dimension check for g: "<<redg.size().height<<"x"<<redg.size().width<<endl;
-	cout<<"MainTest4 - Dimension check for lnE: "<<redlogE.size().height<<"x"<<redlogE.size().width<<endl;
+	//calcResponseCurve(&greeng, &greenlogE, samplePicRed, exposures, greenPhotos, samples, .99f);
+	//calcResponseCurve(&blueg, &bluelogE, samplePicRed, exposures, bluePhotos, samples, .99f);
 
 	//write log E_n out to file
 	FileStorage fileLog("log_E.txt", cv::FileStorage::WRITE);
 	fileLog << "log_E" << redlogE;
 	fileLog.release();
 
-	FileStorage fileG("g.txt", cv::FileStorage::WRITE);
+	FileStorage fileZ("log_E.txt", cv::FileStorage::WRITE);
+	fileLog << "log_E" << redlogE;
+	fileLog.release();
+
+	printMatrixToFile("g", redg);
+	/*FileStorage fileG("g.txt", cv::FileStorage::WRITE);
 	fileG << "g" << redg;
 	fileG.release();
-
+	*/
 
 	cout<<"Program Executed Without Issue"<<endl;
 
