@@ -15,6 +15,24 @@ void printExposures(vector<float>* exp){
 	}
 }
 
+void printMatrixToFile(string filename, Mat m){
+	string fileExt = filename;
+	fileExt.append(".txt");
+
+	ofstream myfile;
+	myfile.open (fileExt.c_str());
+
+	for(int i = 0; i < m.size().height; i++){
+		for( int j = 0; j < m.size().width; j++ )
+		{
+			float data = m.at<float>(i,j);
+			myfile <<data<<"\n";
+		}
+	}
+
+	myfile.close();
+}
+
 //verifies that the number of pictures and the number of exposures loaded checks out
 void loadCheck(vector<float>* exp, vector<Mat>* pictures){
 	if(exp->size() != pictures->size()){
@@ -97,11 +115,6 @@ Mat formatMat(Mat image, int color){
 	Mat singleChan;
 	Mat result;
 
-	FileStorage fileX("formatCheck.txt", cv::FileStorage::WRITE);
-	fileX << "FormatCheck" << image;
-	fileX.release();
-	
-
 	if(image.channels() > 1){
 		vector<Mat> chanVec;
 		split(image, chanVec);
@@ -153,10 +166,7 @@ void generateMatrices(Mat* A, Mat* b, vector<float>* exposures, vector<Mat>* pho
 		 i++;
     }
 
-	Mat aRough = *A;
-	FileStorage fileArough("ARough.txt", cv::FileStorage::WRITE);
-	fileArough << "ARough" << aRough;
-	fileArough.release();
+	printMatrixToFile("A_rough", *A);
 
 	//A->at<float>(k,samples->size()*photos->size()) = 1;	
 	A->at<float>(k, 129) = 1.0f;	
@@ -169,10 +179,7 @@ void generateMatrices(Mat* A, Mat* b, vector<float>* exposures, vector<Mat>* pho
 		k++;																		//k=k+1;
 	}
 
-	Mat aSmooth = *A;
-	FileStorage fileA1("A_smooth.txt", cv::FileStorage::WRITE);
-	fileA1 << "A_smooth" << aSmooth;
-	fileA1.release();
+	printMatrixToFile("A_smooth", *A);
 	cout<<"Done"<<endl;;
 	
 }
@@ -196,10 +203,8 @@ void calcResponseCurve(Mat* g, Mat* logE, Mat img, vector<float>* exposures, vec
 	bool result = solve(A,b,x, DECOMP_SVD);			//Solve the system using SVD
 	cout<<"Success!"<<endl;
 
-	//splits out x to a file
-	FileStorage fileX("x.txt", cv::FileStorage::WRITE);
-	fileX << "x" << x;
-	fileX.release();
+	//spits out x to a file
+	printMatrixToFile("x", x);
 
 	*g = Mat(x, Range(0,256), Range::all());					
 	*logE = Mat(x, Range(256, x.size().height), Range::all());		
@@ -238,42 +243,6 @@ void sampleImage(Mat image, map<float, Vec2i>* samples, int sampleSize){
 	}
 }
 
-void printMatrixToFile(string filename, Mat m){
-	/*string fileExt = filename;
-	fileExt.append(".txt");
-	FileStorage fs(fileExt.c_str(), cv::FileStorage::WRITE);
-
-	cout<<"Writing file "<<filename.c_str()<<endl;
-	//fs << filename << ptvec;
-	for(int i = 0; i < m.size().height; i++){
-		for( int j = 0; j < m.size().height; j++ )
-		{
-			float data = m.at<float>(i,j);
-			string label = ""+i;
-			fs << " " << data;
-		}
-	}
-
-    fs.release();
-	*/
-
-	string fileExt = filename;
-	fileExt.append(".txt");
-
-	ofstream myfile;
-	myfile.open (fileExt.c_str());
-
-	for(int i = 0; i < m.size().height; i++){
-		for( int j = 0; j < m.size().width; j++ )
-		{
-			float data = m.at<float>(i,j);
-			myfile <<data<<",\n";
-		}
-	}
-
-	myfile.close();
-}
-
 void estimateRadianceMap(){
 
 }
@@ -286,14 +255,16 @@ int main( int argc, char** argv )
 {
 	vector<Mat>* photos = new vector<Mat>();
 	vector<float>* exposures = new vector<float>();
-	const char* pictureFolder = "C:\\Users\\Ein\\Desktop\\CathedralTest\\pictures\\";
-	const char* exposureFile = "C:\\Users\\Ein\\Desktop\\CathedralTest\\exposures\\memorial.hdr_image_list.txt";
+
+	string fileRoot = "C:\\Users\\Ein\\Desktop\\CathedralTest\\";
+	string pictureFolder = fileRoot+"\\pictures\\";
+	string exposureFile = fileRoot+"exposures\\memorial.hdr_image_list.txt";
 	
 	//load pictures from folder
-	loadPhotos(photos, pictureFolder);
+	loadPhotos(photos, pictureFolder.c_str());
 	
 	//load shutter speeds from text file
-	loadExposures(exposures, exposureFile);
+	loadExposures(exposures, exposureFile.c_str());
 
 	//verifies that there is an equal number of loaded images and loaded exposures
 	loadCheck(exposures, photos);
@@ -331,20 +302,17 @@ int main( int argc, char** argv )
 	sampleImage(samplePicRed, samples, 50);
 	cout<<"Done"<<endl;
 	
-	calcResponseCurve(&redg, &redlogE, samplePicRed, exposures, redPhotos, samples, .99f);
-	//calcResponseCurve(&greeng, &greenlogE, samplePicRed, exposures, greenPhotos, samples, .99f);
-	//calcResponseCurve(&blueg, &bluelogE, samplePicRed, exposures, bluePhotos, samples, .99f);
+	calcResponseCurve(&redg, &redlogE, samplePicRed, exposures, redPhotos, samples, 1.5f);
+	calcResponseCurve(&greeng, &greenlogE, samplePicRed, exposures, greenPhotos, samples, 1.5f);
+	calcResponseCurve(&blueg, &bluelogE, samplePicRed, exposures, bluePhotos, samples, 1.5f);
 
 	//write log E_n out to file
-	FileStorage fileLog("log_E.txt", cv::FileStorage::WRITE);
-	fileLog << "log_E" << redlogE;
-	fileLog.release();
-
-	FileStorage fileZ("log_E.txt", cv::FileStorage::WRITE);
-	fileLog << "log_E" << redlogE;
-	fileLog.release();
-
-	printMatrixToFile("g", redg);
+	cout<<"Writing response functions to file...";
+	printMatrixToFile("log_E", redlogE);
+	printMatrixToFile("redG", redg);
+	printMatrixToFile("greenG", greeng);
+	printMatrixToFile("blueG", blueg);
+	cout<<"Done"<<endl;
 
 	cout<<"Program Executed Without Issue"<<endl;
 
