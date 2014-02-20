@@ -243,6 +243,44 @@ void sampleImage(Mat image, map<float, Vec2i>* samples, int sampleSize){
 	}
 }
 
+void fancyRadianceMap(Mat &redG, Mat &greenG, Mat &blueG, vector<Mat>* photos, vector<float>* exposures, float *output)
+{
+	int rows = (*photos)[0].rows;
+	int cols = (*photos)[0].cols;
+
+	/*Mat red, green, blue;
+	exp(redG, red);
+	exp(greenG, green);
+	exp(blueG, blue);*/
+
+	for (int row = 0; row < rows; ++row)
+	{
+		for (int col = 0; col < cols; ++col)
+		{
+			float r = 0.0f, g = 0.0f, b = 0.0f;
+			float rDen = 0.0f, gDen = 0.0f, bDen = 0.0f;
+			for (int i = 0; i < photos->size(); ++i)
+			{
+				float dT = logf((*exposures)[i]);
+				Vec3b pixel = (*photos)[i].at<Vec3b>(row, col);
+
+				r += weightingFunction(pixel[2] + 1.0f, 0.0f, 255.0f)*(redG.at<float>(pixel[2], 0) - dT);
+				rDen += weightingFunction(pixel[2] + 1.0f, 0.0f, 255.0f);
+
+				g += weightingFunction(pixel[1] + 1.0f, 0.0f, 255.0f)*(greenG.at<float>(pixel[1], 0) - dT);
+				gDen += weightingFunction(pixel[1] + 1.0f, 0.0f, 255.0f);
+
+				b += weightingFunction(pixel[0] + 1.0f, 0.0f, 255.0f)*(blueG.at<float>(pixel[0], 0) - dT);
+				bDen += weightingFunction(pixel[0] + 1.0f, 0.0f, 255.0f);
+			}
+
+			output[3 * (row*cols + col)] = expf(r / rDen);
+			output[3 * (row*cols + col)+1] = expf(g / gDen);
+			output[3 * (row*cols + col)+2] = expf(b / bDen);
+		}
+	}
+}
+
 
 void estimateRadianceMap(Mat &redG, Mat &greenG, Mat &blueG, const Mat &photo, float *output)
 {
@@ -338,7 +376,8 @@ int main( int argc, char** argv )
 
 	//These do nothing at the moment
 	float *hdrData = (float*)malloc(sizeof(float)* 3 * ((*photos)[4].rows)*((*photos)[4].cols));
-	estimateRadianceMap(redg,greeng,blueg,(*photos)[4],hdrData);		//this may get absorbed into the response curve
+	//estimateRadianceMap(redg,greeng,blueg,(*photos)[4],hdrData);		//this may get absorbed into the response curve
+	fancyRadianceMap(redg, greeng, blueg, photos, exposures, hdrData);
 
 	writeHDRImage(((*photos)[4]).rows, ((*photos)[4]).cols, hdrData);
     return 0;
