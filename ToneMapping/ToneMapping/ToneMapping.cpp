@@ -222,7 +222,6 @@ int main(int argc, char** argv)
 	merge(channels, xyzImage);
 	printMinMaxPerChannel("new XYZ ", xyzImage);
 
-	//normalize3ChanInd(xyzImage);
 
 	//change back to the BGR colorspace
 	cvtColor(xyzImage, rgbImage, CV_XYZ2BGR);
@@ -236,13 +235,9 @@ int main(int argc, char** argv)
 	rgbImage.copyTo(finalImage);
 	showFinalImage();
 
-	/*vector<Mat> newChan;
-	split(rgbImage, newChan);
-	showWindow("ToneChannel", newChan[2]);*/
-
+	//save the final image
+	scaleTo255(rgbImage);
 	imwrite("testImg.jpg", rgbImage);
-	//namedWindow("ToneMap", WINDOW_NORMAL); // Create a window for display.
-	//imshow("ToneMap", rgbImage); // Show our image inside it.
 
 	waitKey(0); // Wait for a keystroke in the window
 

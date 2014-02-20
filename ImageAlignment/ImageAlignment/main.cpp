@@ -39,11 +39,22 @@ void bitmapShift(const Mat *bm, int xo, int yo, Mat *bm_ret);
  */
 void shiftImage(const Mat &input, int xo, int yo, Mat &output);
 
-
+/**
+ *	Used to load in all the images in a folder. Will return all the image data and 
+ *	the names of the files through the pictures and fileNames parameters
+ */
 void loadPhotos(vector<Mat>* pictures, vector<string>* fileNames, const char* pictureFolder);
 
+/**
+ *	Saves the provided images to the specified folder using the given file names
+ */
 void savePhotos(vector<Mat>* pictures, vector<string>* fileNames, string folder);
 
+/**
+ *	Performs an image alignment of the provided photo set using the specified index
+ *	as the origin image, which won't be shifted. It will output a shifted version 
+ *	of each image added to the output vector.
+ */
 void alignImages(vector<Mat>* photos, int origin, vector<Mat>* output);
 
 
@@ -54,9 +65,8 @@ int main(int argc, char** argv)
 	vector<string>* fileNames = new vector<string>();
 	vector<float>* exposures = new vector<float>();
 
-	string fileRoot = "C:\\Users\\Nick\\Desktop\\HDR_Project\\ResponseFunction\\ResponseFunction\\Shelter01";
+	string fileRoot = "C:\\Users\\Nick\\Desktop\\HDR_Project\\Shelter01";
 	string pictureFolder = fileRoot + "\\pictures\\";
-	//string exposureFile = fileRoot + "\\exposures\\memorial.hdr_image_list.txt";
 	string outputFolder = fileRoot + "\\alignedPictures\\";
 
 	//load pictures from folder
@@ -66,10 +76,6 @@ int main(int argc, char** argv)
 
 	savePhotos(newPhotos, fileNames, outputFolder);
 
-	//namedWindow("Greyscale", WINDOW_AUTOSIZE); // Create a window for display.
-	//imshow("Greyscale", grey1); // Show our image inside it.
-	//waitKey(0); // Wait for a keystroke in the window
-
 	return 0;
 }
 
@@ -78,9 +84,10 @@ void alignImages(vector<Mat>* photos, int origin, vector<Mat>* output)
 {
 	vector<int> xShifts;
 	vector<int> yShifts;
+
+	//calculate the shift from one image to the next
 	for (int i = 0; i < photos->size()-1; ++i)
 	{
-
 		Mat firstImg;
 		Mat secondImg;
 		cvtColor((*photos)[i], firstImg, CV_BGR2GRAY);
@@ -99,11 +106,12 @@ void alignImages(vector<Mat>* photos, int origin, vector<Mat>* output)
 
 	cout << endl << endl;
 
+	//calculate the shift for each image relative to the origin image
 	vector<int> finalXShifts;
 	vector<int> finalYShifts;
 	for (int i = 0; i < xShifts.size()+1; ++i)
 	{
-		if (i == origin)
+		if (i == origin) //the origin image doesn't shift
 		{
 			finalXShifts.push_back(0);
 			finalYShifts.push_back(0);
@@ -125,6 +133,7 @@ void alignImages(vector<Mat>* photos, int origin, vector<Mat>* output)
 		}
 	}
 
+	//perform the actual image shift
 	for (int i = 0; i < finalXShifts.size(); ++i)
 	{
 		Mat temp;
