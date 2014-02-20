@@ -4,6 +4,8 @@
 #include <opencv2/highgui/highgui.hpp>
 #include <opencv2/gpu/gpu.hpp>
 #include <iostream>
+#include <fstream>
+#include <dirent.h>
 
 using namespace cv;
 using namespace std;
@@ -32,28 +34,144 @@ void computeBitmaps(const Mat *img, Mat *tb, Mat *eb);
 */
 void bitmapShift(const Mat *bm, int xo, int yo, Mat *bm_ret);
 
+/**
+ *	Shift the given 3 channel input image to the right by x0 and down by y0
+ */
+void shiftImage(const Mat &input, int xo, int yo, Mat &output);
 
 
-int main3(int argc, char** argv)
+void loadPhotos(vector<Mat>* pictures, vector<string>* fileNames, const char* pictureFolder);
+
+void savePhotos(vector<Mat>* pictures, vector<string>* fileNames, string folder);
+
+void alignImages(vector<Mat>* photos, int origin, vector<Mat>* output);
+
+
+int main(int argc, char** argv)
 {
-	Mat img1, img2, grey1, grey2;
-	img1 = imread("deskPic1.jpg", IMREAD_COLOR); // Read the file
-	img2 = imread("deskPic2.jpg", IMREAD_COLOR); // Read the file
-	cvtColor(img1, grey1, CV_BGR2GRAY);
-	cvtColor(img2, grey2, CV_BGR2GRAY);
+	vector<Mat>* photos = new vector<Mat>();
+	vector<Mat>* newPhotos = new vector<Mat>();
+	vector<string>* fileNames = new vector<string>();
+	vector<float>* exposures = new vector<float>();
 
-	int shiftVal[2];
-	getExpShift(&grey1, &grey2, 6, shiftVal);
+	string fileRoot = "C:\\Users\\Nick\\Desktop\\HDR_Project\\ResponseFunction\\ResponseFunction\\Shelter01";
+	string pictureFolder = fileRoot + "\\pictures\\";
+	//string exposureFile = fileRoot + "\\exposures\\memorial.hdr_image_list.txt";
+	string outputFolder = fileRoot + "\\alignedPictures\\";
 
-	cout << "Shift amount: (" << shiftVal[0] << "," << shiftVal[1] << ")" << endl;
+	//load pictures from folder
+	loadPhotos(photos, fileNames, pictureFolder.c_str());
 
-	namedWindow("Greyscale", WINDOW_AUTOSIZE); // Create a window for display.
-	imshow("Greyscale", grey1); // Show our image inside it.
+	alignImages(photos, 4, newPhotos);
 
-	waitKey(0); // Wait for a keystroke in the window
+	savePhotos(newPhotos, fileNames, outputFolder);
+
+	//namedWindow("Greyscale", WINDOW_AUTOSIZE); // Create a window for display.
+	//imshow("Greyscale", grey1); // Show our image inside it.
+	//waitKey(0); // Wait for a keystroke in the window
 
 	return 0;
 }
+
+
+void alignImages(vector<Mat>* photos, int origin, vector<Mat>* output)
+{
+	vector<int> xShifts;
+	vector<int> yShifts;
+	for (int i = 0; i < photos->size()-1; ++i)
+	{
+
+		Mat firstImg;
+		Mat secondImg;
+		cvtColor((*photos)[i], firstImg, CV_BGR2GRAY);
+		cvtColor((*photos)[i + 1], secondImg, CV_BGR2GRAY);
+
+		int shiftVal[2];
+		shiftVal[0] = 0;
+		shiftVal[1] = 0;
+		getExpShift(&firstImg, &secondImg, 5, shiftVal);
+
+		xShifts.push_back(shiftVal[0]);
+		yShifts.push_back(shiftVal[1]);
+
+		cout << "Shift amount for " << i << " to " << (i+1) << ": (" << shiftVal[0] << "," << shiftVal[1] << ")" << endl;
+	}
+
+	cout << endl << endl;
+
+	vector<int> finalXShifts;
+	vector<int> finalYShifts;
+	for (int i = 0; i < xShifts.size()+1; ++i)
+	{
+		if (i == origin)
+		{
+			finalXShifts.push_back(0);
+			finalYShifts.push_back(0);
+		}
+		else if (i < origin)
+		{
+			for (int j = 0; j<finalXShifts.size(); ++j)
+			{
+				finalXShifts[j] += xShifts[i];
+				finalYShifts[j] += yShifts[i];
+			}
+			finalXShifts.push_back(xShifts[i]);
+			finalYShifts.push_back(yShifts[i]);
+		}
+		else if (i > origin)
+		{
+			finalXShifts.push_back(-xShifts[i - 1] + finalXShifts[finalXShifts.size() - 1]);
+			finalYShifts.push_back(-yShifts[i - 1] + finalYShifts[finalYShifts.size() - 1]);
+		}
+	}
+
+	for (int i = 0; i < finalXShifts.size(); ++i)
+	{
+		Mat temp;
+		shiftImage((*photos)[i], finalXShifts[i], finalYShifts[i], temp);
+		output->push_back(temp);
+		cout << "Shift Image " << i << ": (" << finalXShifts[i] << "," << finalYShifts[i] << ")" << endl;
+	}
+}
+
+
+void loadPhotos(vector<Mat>* pictures, vector<string>* fileNames, const char* pictureFolder)
+{
+	DIR *dir;
+	struct dirent *ent;
+	if ((dir = opendir(pictureFolder)) != NULL) {
+		cout << "Loading images..." << endl;
+		/* print all the files and directories within directory */
+		while ((ent = readdir(dir)) != NULL) {
+			//ignore directories above
+			if (!(strcmp(ent->d_name, "..") == 0 || strcmp(ent->d_name, ".") == 0)){
+				string filename = pictureFolder;
+				filename.append(ent->d_name);
+				Mat img = imread(filename.c_str());
+				pictures->push_back(img);
+				fileNames->push_back(ent->d_name);
+				printf("%s\n", ent->d_name);
+			}
+		}
+		closedir(dir);
+		cout << endl;
+	}
+	else {
+		/* could not open directory */
+		perror("Could not open directory");
+		//return EXIT_FAILURE;
+	}
+}
+
+void savePhotos(vector<Mat>* pictures, vector<string>* fileNames, string folder)
+{
+	for (int i = 0; i < pictures->size(); ++i)
+	{
+		string filePath = folder + (*fileNames)[i];
+		imwrite(filePath.c_str(), (*pictures)[i]);
+	}
+}
+
 
 void newExpShift(const Mat *img1, const Mat *img2, int shift_bits, int shift_ret[2])
 {
@@ -239,6 +357,26 @@ void bitmapShift(const Mat *bm, int xo, int yo, Mat *bm_ret)
 				bm_ret->data[col + row*bm_ret->step] = 0;
 			else
 				bm_ret->data[col + row*bm_ret->step] = bm->data[oldCol + oldRow*bm->step];
+		}
+	}
+}
+
+void shiftImage(const Mat &input, int xo, int yo, Mat &output)
+{
+	output.create(input.size(), input.type());
+
+	for (int row = 0; row < input.rows; row++)
+	{
+		int oldRow = row + yo;
+		for (int col = 0; col < input.cols; col++)
+		{
+			int oldCol = col + xo;
+			if (oldRow < 0 || oldRow >= input.rows || oldCol < 0 || oldCol >= input.cols)
+				output.at<Vec3b>(row, col) = Vec3b(0,0,0);
+				//output.data[col + row*bm_ret->step] = 0;
+			else
+				output.at<Vec3b>(row, col) = input.at<Vec3b>(oldRow,oldCol);
+				//output.data[col + row*bm_ret->step] = bm->data[oldCol + oldRow*bm->step];
 		}
 	}
 }
