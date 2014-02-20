@@ -313,9 +313,9 @@ int main( int argc, char** argv )
 	vector<Mat>* photos = new vector<Mat>();
 	vector<float>* exposures = new vector<float>();
 
-	string fileRoot = "C:\\Users\\Nick\\Desktop\\HDR_Project\\ResponseFunction\\ResponseFunction\\CathedralDataSet";
-	string pictureFolder = fileRoot+"\\pictures\\";
-	string exposureFile = fileRoot+"\\exposures\\memorial.hdr_image_list.txt";
+	string fileRoot = "C:\\Users\\Nick\\Desktop\\HDR_Project\\ResponseFunction\\ResponseFunction\\Shelter01";
+	string pictureFolder = fileRoot+"\\alignedPictures\\";
+	string exposureFile = fileRoot+"\\exposures\\exp.txt.txt";
 	
 	//load pictures from folder
 	loadPhotos(photos, pictureFolder.c_str());
